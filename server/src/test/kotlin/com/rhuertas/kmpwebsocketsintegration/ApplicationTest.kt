@@ -6,6 +6,8 @@ import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.*
 import io.ktor.websocket.*
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 import kotlin.test.*
 
 class ApplicationTest {
@@ -31,16 +33,19 @@ class ApplicationTest {
         }
 
         webSocketClient.webSocket("/ws") {
-            assertEquals("Connected", (incoming.receive() as Frame.Text).readText())
-
-            send("hello")
-            assertEquals("Echo: hello", (incoming.receive() as Frame.Text).readText())
-
-            send("bye")
-            assertEquals(
-                CloseReason(CloseReason.Codes.NORMAL, "Client closed"),
-                closeReason.await(),
+            val expected = listOf(
+                Task("cleaning", "Clean the house", Priority.Low),
+                Task("gardening", "Mow the lawn", Priority.Medium),
+                Task("shopping", "Buy the groceries", Priority.High),
+                Task("painting", "Paint the fence", Priority.Medium),
             )
+
+            expected.forEach { task ->
+                val frame = incoming.receive() as Frame.Text
+                assertEquals(task, Json.decodeFromString(frame.readText()))
+            }
+
+            assertEquals(CloseReason(CloseReason.Codes.NORMAL, "All done"), closeReason.await())
         }
     }
 }

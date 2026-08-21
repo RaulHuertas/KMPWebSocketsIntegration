@@ -1,12 +1,16 @@
 package com.rhuertas.kmpwebsocketsintegration
 
-import io.ktor.server.application.*
-import io.ktor.server.engine.*
-import io.ktor.server.netty.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
+import io.ktor.server.application.Application
+import io.ktor.server.application.install
+import io.ktor.server.engine.embeddedServer
+import io.ktor.server.netty.Netty
+import io.ktor.server.response.respondText
+import io.ktor.server.routing.get
+import io.ktor.server.routing.routing
 import io.ktor.server.websocket.*
-import io.ktor.websocket.*
+import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.seconds
 
 fun main() {
     embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
@@ -14,7 +18,13 @@ fun main() {
 }
 
 fun Application.module() {
-    install(WebSockets)
+    install(WebSockets) {
+        contentConverter = KotlinxWebsocketSerializationConverter(Json)
+        pingPeriod = 15.seconds
+        timeout = 15.seconds
+        maxFrameSize = Long.MAX_VALUE
+        masking = false
+    }
 
     routing {
         get("/") {
@@ -22,18 +32,7 @@ fun Application.module() {
         }
 
         webSocket("/ws") {
-            send("Connected")
-
-            for (frame in incoming) {
-                frame as? Frame.Text ?: continue
-                val message = frame.readText()
-
-                if (message.equals("bye", ignoreCase = true)) {
-                    close(CloseReason(CloseReason.Codes.NORMAL, "Client closed"))
-                } else {
-                    send("Echo: $message")
-                }
-            }
+            handleClient()
         }
     }
 }
